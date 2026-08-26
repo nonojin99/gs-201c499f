@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Daily Games 통계</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#0d0f1e;color:#fff;font-family:'Segoe UI','Apple SD Gothic Neo','Noto Sans KR',sans-serif;display:flex;flex-direction:column;align-items:center;padding:48px 20px}
+h1{font-size:40px;font-weight:900;letter-spacing:1px;background:linear-gradient(90deg,#ff3b6b,#ffd93b,#3bff8a,#3b9bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+p.sub{color:#9aa0c0;margin:10px 0 36px;font-size:14px;text-align:center}
+a.nav{color:#3b9bff;text-decoration:none;font-size:13px}
+.kpis{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-bottom:28px}
+.kpi{background:#12152b;border:1px solid #23284a;border-radius:16px;padding:16px 24px;text-align:center;min-width:120px}
+.kpi b{display:block;font-size:28px;font-weight:900}
+.kpi span{font-size:12px;color:#9aa0c0}
+.tblwrap{width:min(920px,100%);overflow-x:auto;background:#12152b;border:1px solid #23284a;border-radius:18px;padding:8px}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:640px}
+th{font-size:11px;color:#6f76a8;text-transform:uppercase;letter-spacing:1px;text-align:left;padding:12px 10px;border-bottom:1px solid #23284a}
+td{padding:12px 10px;border-bottom:1px solid #1a1e3a;color:#e8eaff}
+tr:last-child td{border-bottom:none}
+td.g a{color:#fff;text-decoration:none;font-weight:700}
+td.g a:hover{color:#3b9bff}
+td.g .d{font-size:11px;color:#6f76a8}
+.bar-cell{min-width:140px}
+.bar{height:18px;background:linear-gradient(90deg,#3bff8a,#3b9bff);border-radius:6px;display:inline-block;vertical-align:middle;min-width:2px}
+.bar-cell span{margin-left:8px;font-weight:700}
+#loading{color:#6f76a8;padding:40px 0}
+footer{margin-top:40px;font-size:12px;color:#4a5078;text-align:center;line-height:1.8}
+</style>
+</head>
+<body>
+<h1>📊 STATS</h1>
+<p class="sub">Daily Games 플레이 데이터 (실시간) · <a class="nav" href="https://daily-games-afim.onrender.com/">게임 목록</a></p>
+<div class="kpis" id="kpis"></div>
+<div class="tblwrap"><div id="loading">불러오는 중…</div><table id="tbl" style="display:none">
+<thead><tr><th>게임</th><th>플레이</th><th>방문</th><th>완주</th><th>평균점수</th><th>최고점수</th><th>랭킹 참여</th></tr></thead>
+<tbody id="tbody"></tbody>
+</table></div>
+<footer>플레이 = 게임 시작 횟수 · 방문 = 페이지 로드 · 완주 = 게임오버 도달<br>랭킹 참여 = 닉네임당 최고 기록 1개 기준</footer>
+
+<script>
+const A_URL = "https://fpjgjwazqpfiffnsgume.supabase.co";
+const A_KEY = "sb_publishable_I1YgcnYNBOaGy0WwozO2wQ_PGwsLtU5";
+const B_URL = "https://ijmmqmarbkkkssciagof.supabase.co";
+const B_KEY = "sb_publishable_-Yw_iVRLOGF0W1CFj_v9SA_PLm301S6";
+const GAME_BASE = "https://daily-games-afim.onrender.com/games/";
+
+// 라이브러리(예전) 게임 — 각 저장소에 로그 스니펫을 넣으면 여기 방문 수가 집계됨
+// game_id는 스니펫이 URL 경로에서 자동 추출 (소문자)
+const OLD_GAMES = [
+  { id: "beat", title: "BEATDROP", emoji: "🎵", url: "https://nonojin99.github.io/Beat/" },
+  { id: "stack", title: "STACK! 3D", emoji: "📦", url: "https://nonojin99.github.io/Stack/" },
+  { id: "brick-breakers", title: "벽돌깨기 1vs1", emoji: "🧱", url: "https://nonojin99.github.io/Brick-breakers/" },
+  { id: "leaf-io", title: "2048", emoji: "🍃", url: "https://nonojin99.github.io/Leaf-io/" },
+  { id: "-", title: "수박게임", emoji: "🍉", url: "https://nonojin99.github.io/-/" },
+  { id: "fortress", title: "포트리스", emoji: "💣", url: "https://nonojin99.github.io/Fortress/" },
+  { id: "poop-dodge", title: "똥피하기", emoji: "💩", url: "https://nonojin99.github.io/Poop-Dodge/" },
+  { id: "billiards", title: "당구", emoji: "🎱", url: "https://nonojin99.github.io/billiards/" },
+  { id: "constellation-voyage", title: "별자리 항해", emoji: "🌌", url: "https://nonojin99.github.io/constellation-voyage/" },
+  { id: "daily-card-news", title: "일일 카드뉴스", emoji: "📰", url: "https://nonojin99.github.io/Daily-Card-News/" },
+  { id: "jumptogether", title: "단체 줄넘기", emoji: "🪢", url: "https://jumptogether.onrender.com/" },
+  { id: "caterpiller-territory-game", title: "애벌레 땅따먹기", emoji: "🐛", url: "https://caterpiller-territory-game.onrender.com" },
+  { id: "royale", title: "Royale", emoji: "⚔️", url: "https://royale-ii59.onrender.com" }
+];
+
+const h = (k) => ({ apikey: k, Authorization: "Bearer " + k, "Content-Type": "application/json" });
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const j = (r) => r.ok ? r.json() : [];
+
+async function load() {
+  const [games, stats, rkA, rkB] = await Promise.all([
+    fetch(`${A_URL}/rest/v1/games?select=slug,title,day,emoji,published_on&order=day.asc`, { headers: h(A_KEY) }).then(j),
+    fetch(`${A_URL}/rest/v1/rpc/game_stats`, { method: "POST", headers: h(A_KEY), body: "{}" }).then(j).catch(() => []),
+    fetch(`${A_URL}/rest/v1/daily_rankings?select=game_id&limit=10000`, { headers: h(A_KEY) }).then(j).catch(() => []),
+    fetch(`${B_URL}/rest/v1/daily_rankings?select=game_id&limit=10000`, { headers: h(B_KEY) }).then(j).catch(() => [])
+  ]);
+
+  const counts = {};
+  [...rkA, ...rkB].forEach(r => { counts[r.game_id] = (counts[r.game_id] || 0) + 1; });
+  const statMap = {};
+  stats.forEach(s => { statMap[s.game_id] = s; });
+
+  const emptyStat = () => ({ loads: 0, starts: 0, overs: 0, avg_score: null, best_score: null });
+  const rows = games.map(g => ({
+    ...g,
+    label: `DAY ${g.day} · ${g.published_on}`,
+    link: GAME_BASE + g.slug + "/",
+    stat: statMap[g.slug] || emptyStat(),
+    players: counts[g.slug] || 0
+  }));
+  const oldRows = OLD_GAMES.map(g => ({
+    ...g,
+    slug: g.id,
+    label: "라이브러리",
+    link: g.url,
+    stat: statMap[g.id] || emptyStat(),
+    players: counts[g.id] || 0
+  }));
+  rows.push(...oldRows);
+
+  const totals = rows.reduce((a, r) => ({
+    loads: a.loads + Number(r.stat.loads), starts: a.starts + Number(r.stat.starts), players: a.players + r.players
+  }), { loads: 0, starts: 0, players: 0 });
+
+  document.getElementById("kpis").innerHTML = [
+    [rows.length, "게임 수"], [totals.starts, "총 플레이"], [totals.loads, "총 방문"], [totals.players, "랭킹 참여"]
+  ].map(([v, l]) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join("");
+
+  const maxStarts = Math.max(1, ...rows.map(r => Math.max(Number(r.stat.starts), Number(r.stat.loads))));
+  document.getElementById("tbody").innerHTML = rows.map(r => `
+    <tr>
+      <td class="g"><span class="d">${esc(r.label)}</span><br>${esc(r.emoji)} <a href="${esc(r.link)}">${esc(r.title)}</a></td>
+      <td class="bar-cell"><div class="bar" style="width:${(Number(r.stat.starts) / maxStarts) * 88}%"></div><span>${r.stat.starts}</span></td>
+      <td>${r.stat.loads}</td>
+      <td>${r.stat.overs}</td>
+      <td>${r.stat.avg_score ?? "—"}</td>
+      <td>${r.stat.best_score ?? "—"}</td>
+      <td>${r.players}</td>
+    </tr>`).join("");
+
+  document.getElementById("loading").style.display = "none";
+  document.getElementById("tbl").style.display = "";
+}
+
+load().catch(() => {
+  document.getElementById("loading").textContent = "데이터를 불러올 수 없어요. 잠시 후 새로고침해 주세요.";
+});
+</script>
+</body>
+</html>
